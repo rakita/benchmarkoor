@@ -12,3 +12,8 @@ BULD = "BULD"
 [default.extend-identifiers]
 BAL = "BAL"
 BALs = "BALs"
+
+# Suite hashes in generated coverage reports are 16 hex characters; typos splits
+# them into letter runs and flags fragments such as "ba".
+[default]
+extend-ignore-re = ["\\b[0-9a-f]{16}\\b"]

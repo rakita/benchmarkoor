@@ -41,7 +41,10 @@ docker compose -f docker-compose.tempo.yaml run --rm benchmarkoor
 
 The compose file mounts `TEMPO_SUITE_DIR` at `/app/tempo-suite`, writes results
 to `./results`, and defaults to `container-recreate` because each merged source
-suite starts from genesis.
+suite starts from genesis. The benchmark runner is privileged so it can run
+`sync` and write `3` to `/proc/sys/vm/drop_caches` between each setup and
+measured test step. This clears page cache, dentries, and inodes for the whole
+Linux Docker host (or Docker Desktop VM), not only the Tempo container.
 
 For a much quicker smoke run, execute the smaller `tip20-full-blocks` suite:
 

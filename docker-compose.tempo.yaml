@@ -8,6 +8,8 @@ services:
         VERSION: ${VERSION:-dev}
         COMMIT: ${COMMIT:-none}
         DATE: ${DATE:-unknown}
+    # Required to flush the Docker host/VM page cache between setup and test.
+    privileged: true
     environment:
       - TEMPO_IMAGE=${TEMPO_IMAGE:-docker.io/tempoxyz/tempo:latest}
       - TEMPO_SUITE_MANIFEST=${TEMPO_SUITE_MANIFEST:-/app/tempo-suite/manifest.json}

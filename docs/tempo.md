@@ -77,6 +77,11 @@ The dedicated Compose file builds Benchmarkoor, mounts the selected suite, gives
 access to the Docker socket, and places Benchmarkoor and the Tempo client on the same network.
 Benchmarkoor then creates and removes a fresh Tempo data volume for the run.
 
+It also runs the Benchmarkoor container in privileged mode. Immediately after each setup step
+and before the measured test step, Benchmarkoor runs `sync` and writes `3` to
+`/proc/sys/vm/drop_caches`. This produces a cold-cache measurement by clearing page cache,
+dentries, and inodes across the Linux Docker host (or the Docker Desktop VM).
+
 ```sh
 cd "$BENCHMARKOOR_REPO"
 mkdir -p tmp results

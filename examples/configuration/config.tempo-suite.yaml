@@ -24,8 +24,9 @@ runner:
   client:
     config:
       # Tempo's reth_newPayload response supplies server execution timings.
-      # Keep cache dropping disabled unless the host is configured to allow it.
-      drop_memory_caches: disabled
+      # Flush dirty data and evict Linux page cache, dentries, and inodes after
+      # setup and immediately before the measured test step.
+      drop_memory_caches: steps
       # The example manifests contain one independent test. Use a fresh run for
       # each manifest instead of trying to rewind Tempo with debug_setHead.
       # Merged suite bundles set TEMPO_ROLLBACK_STRATEGY=container-recreate;

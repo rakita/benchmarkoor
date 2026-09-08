@@ -10,12 +10,16 @@ Engine API surface and reports correctness and performance.
 - `suites/all`: the full checked-in Tempo corpus.
 - `suites/tip20-full-blocks`: focused high-gas TIP-20 full-block workloads.
 - `suites/point-evaluation-warm`: focused KZG point-evaluation warm workload.
+- `suites/precompile-regressions`: focused point-evaluation, RIPEMD-160, and
+  SHA-256 chain regression cases, with their required prefix retained as setup.
 - `suites/p256verify`: focused Osaka P-256 verification workloads, with each
   case independently replayable from genesis.
 - `export-suite.py`: export canonical blocks from a running Tempo node.
 - `validate-suite.py`: validate suite manifests and referenced block files.
 - `merge-suites.py` and `merge-all-suites.sh`: maintainer helpers for rebuilding
   aggregate manifests.
+- `extract-precompile-regressions.py`: rebuild the focused regression suite from
+  the checked-in aggregate.
 - `tempo_eest_adapter.py`, `run-batch.sh`, and `run-one.sh`: EEST-to-Tempo
   capture tooling.
 

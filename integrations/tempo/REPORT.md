@@ -42,13 +42,14 @@ Inputs:
 
 ## Current shipped suite layout
 
-The repository now ships four self-contained suites:
+The repository now ships five self-contained suites:
 
 | Suite directory | Entries | Source segments | Purpose |
 | --- | ---: | ---: | --- |
 | `integrations/tempo/suites/all` | 972 | 27 | Complete selected runnable corpus, including four independently replayable Osaka P-256 segments |
 | `integrations/tempo/suites/tip20-full-blocks` | 6 | 6 | Focused bundle of only the high-gas TIP-20 full-block workloads |
 | `integrations/tempo/suites/point-evaluation-warm` | 1 | 1 | KZG point-evaluation 10M benchmark with setup precompile warmup plus a 1M setup workload |
+| `integrations/tempo/suites/precompile-regressions` | 21 | 1 | Focused point-evaluation, RIPEMD-160, and SHA-256 cases with the source segment prefix retained as setup |
 | `integrations/tempo/suites/p256verify` | 4 | 4 | Osaka P-256 verification benchmarks, independently generated from the aggregate genesis |
 
 All shipped manifests keep their required `genesis.json` and block files

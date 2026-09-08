@@ -12,7 +12,7 @@
   "chain": {
     "name": "tempo",
     "chain_id": 1337,
-    "hardfork": "dev-all",
+    "hardfork": "t9",
     "genesis": "genesis.json"
   },
   "metadata": {

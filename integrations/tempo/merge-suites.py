@@ -132,8 +132,24 @@ def main() -> None:
         if candidate_digest != genesis_digest:
             raise ValueError(f"{manifest_path}: genesis differs from first suite")
 
-        for test_index, source_test in enumerate(manifest["tests"]):
+        pending_setup: list[dict[str, Any]] = []
+        retained_test_count = 0
+        for source_test in manifest["tests"]:
             if source_test["name"] in args.exclude_test:
+                # A Tempo suite is one canonical chain. Excluding the measured
+                # result must not exclude its blocks, otherwise the next test
+                # starts with an unknown parent and Engine API returns SYNCING.
+                for phase in ("setup", "test", "cleanup"):
+                    for source_call in source_test.get(phase, []):
+                        call = json.loads(json.dumps(source_call))
+                        rewrite_call_files(
+                            call,
+                            manifest_path,
+                            output_path,
+                            source_name,
+                            args.copy_files,
+                        )
+                        pending_setup.append(call)
                 continue
             test = json.loads(json.dumps(source_test))
             test["name"] = f"{source_name}::{source_test['name']}"
@@ -155,7 +171,7 @@ def main() -> None:
                         f"is outside 0..{bundled_segments - 1}"
                     )
                 metadata["suite_segment"] = str(segment_offset + bundled_index)
-            if test_index == 0 or metadata.get("suite_segment_start") == "true":
+            if retained_test_count == 0 or metadata.get("suite_segment_start") == "true":
                 metadata["suite_segment_start"] = "true"
             test["metadata"] = metadata
             for phase in ("setup", "test", "cleanup"):
@@ -167,7 +183,11 @@ def main() -> None:
                         source_name,
                         args.copy_files,
                     )
+            if pending_setup:
+                test["setup"] = [*pending_setup, *test.get("setup", [])]
+                pending_setup = []
             tests.append(test)
+            retained_test_count += 1
         segment_offset += bundled_segments or 1
 
     output = {

@@ -207,7 +207,7 @@ func (s *tempoSuiteSource) Prepare(_ context.Context) (*PreparedSource, error) {
 	}
 
 	if len(prepared.Tests) == 0 {
-		return nil, fmt.Errorf("Tempo suite has no tests matching filter %q", s.filter.String())
+		return nil, fmt.Errorf("tempo suite has no tests matching filter %q", s.filter.String())
 	}
 
 	s.log.WithFields(logrus.Fields{
@@ -224,26 +224,26 @@ func validateTempoSuiteManifest(manifest *TempoSuiteManifest) error {
 		return fmt.Errorf("unsupported Tempo suite format %q, expected %q", manifest.Format, TempoSuiteFormat)
 	}
 	if strings.TrimSpace(manifest.Name) == "" {
-		return fmt.Errorf("Tempo suite name is required")
+		return fmt.Errorf("tempo suite name is required")
 	}
 	if strings.TrimSpace(manifest.Chain.Genesis) == "" {
-		return fmt.Errorf("Tempo suite chain.genesis is required")
+		return fmt.Errorf("tempo suite chain.genesis is required")
 	}
 	if len(manifest.Tests) == 0 {
-		return fmt.Errorf("Tempo suite must contain at least one test")
+		return fmt.Errorf("tempo suite must contain at least one test")
 	}
 
 	seen := make(map[string]struct{}, len(manifest.Tests))
 	for i, test := range manifest.Tests {
 		if strings.TrimSpace(test.Name) == "" {
-			return fmt.Errorf("Tempo suite test %d has no name", i)
+			return fmt.Errorf("tempo suite test %d has no name", i)
 		}
 		if _, ok := seen[test.Name]; ok {
-			return fmt.Errorf("Tempo suite contains duplicate test name %q", test.Name)
+			return fmt.Errorf("tempo suite contains duplicate test name %q", test.Name)
 		}
 		seen[test.Name] = struct{}{}
 		if len(test.Test) == 0 {
-			return fmt.Errorf("Tempo suite test %q has no measured calls", test.Name)
+			return fmt.Errorf("tempo suite test %q has no measured calls", test.Name)
 		}
 	}
 
@@ -408,7 +408,7 @@ func (s *tempoSuiteSource) Cleanup() error { return nil }
 
 func (s *tempoSuiteSource) GetSourceInfo() (*SuiteSource, error) {
 	if s.manifest == nil {
-		return nil, fmt.Errorf("Tempo suite source has not been prepared")
+		return nil, fmt.Errorf("tempo suite source has not been prepared")
 	}
 
 	chain := s.manifest.Chain

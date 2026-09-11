@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
@@ -128,7 +128,9 @@ func (r *dockerReader) stream(ctx context.Context, dockerClient *client.Client) 
 	defer close(r.done)
 
 	for ctx.Err() == nil {
-		resp, err := dockerClient.ContainerStats(ctx, r.containerID, true)
+		resp, err := dockerClient.ContainerStats(ctx, r.containerID, client.ContainerStatsOptions{
+			Stream: true,
+		})
 		if err != nil {
 			if ctx.Err() != nil {
 				return

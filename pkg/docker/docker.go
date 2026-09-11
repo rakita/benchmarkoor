@@ -8,15 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/blkiodev"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/blkiodev"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
@@ -140,7 +137,7 @@ type VolumeInfo struct {
 
 // NewManager creates a new Docker manager.
 func NewManager(log logrus.FieldLogger) (Manager, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("creating docker client: %w", err)
 	}
@@ -164,7 +161,7 @@ var _ Manager = (*manager)(nil)
 
 // Start initializes the Docker manager.
 func (m *manager) Start(ctx context.Context) error {
-	_, err := m.client.Ping(ctx)
+	_, err := m.client.Ping(ctx, client.PingOptions{})
 	if err != nil {
 		return fmt.Errorf("connecting to docker daemon: %w", err)
 	}
@@ -191,14 +188,14 @@ func (m *manager) Stop() error {
 
 // EnsureNetwork creates a Docker network if it doesn't exist.
 func (m *manager) EnsureNetwork(ctx context.Context, name string) error {
-	networks, err := m.client.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", name)),
+	networks, err := m.client.NetworkList(ctx, client.NetworkListOptions{
+		Filters: make(client.Filters).Add("name", name),
 	})
 	if err != nil {
 		return fmt.Errorf("listing networks: %w", err)
 	}
 
-	for _, net := range networks {
+	for _, net := range networks.Items {
 		if net.Name == name {
 			m.log.WithField("network", name).Debug("Network already exists")
 
@@ -206,7 +203,7 @@ func (m *manager) EnsureNetwork(ctx context.Context, name string) error {
 		}
 	}
 
-	_, err = m.client.NetworkCreate(ctx, name, network.CreateOptions{
+	_, err = m.client.NetworkCreate(ctx, name, client.NetworkCreateOptions{
 		Driver: "bridge",
 	})
 	if err != nil {
@@ -220,14 +217,14 @@ func (m *manager) EnsureNetwork(ctx context.Context, name string) error {
 
 // NetworkExists reports whether a network with the given name exists.
 func (m *manager) NetworkExists(ctx context.Context, name string) (bool, error) {
-	networks, err := m.client.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", name)),
+	networks, err := m.client.NetworkList(ctx, client.NetworkListOptions{
+		Filters: make(client.Filters).Add("name", name),
 	})
 	if err != nil {
 		return false, fmt.Errorf("listing networks: %w", err)
 	}
 
-	for _, net := range networks {
+	for _, net := range networks.Items {
 		if net.Name == name {
 			return true, nil
 		}
@@ -238,7 +235,7 @@ func (m *manager) NetworkExists(ctx context.Context, name string) (bool, error) 
 
 // RemoveNetwork removes a Docker network.
 func (m *manager) RemoveNetwork(ctx context.Context, name string) error {
-	if err := m.client.NetworkRemove(ctx, name); err != nil {
+	if _, err := m.client.NetworkRemove(ctx, name, client.NetworkRemoveOptions{}); err != nil {
 		return fmt.Errorf("removing network %s: %w", name, err)
 	}
 
@@ -327,7 +324,12 @@ func (m *manager) CreateContainer(ctx context.Context, spec *ContainerSpec) (str
 
 	networkCfg := &network.NetworkingConfig{}
 
-	resp, err := m.client.ContainerCreate(ctx, containerCfg, hostCfg, networkCfg, nil, spec.Name)
+	resp, err := m.client.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           containerCfg,
+		HostConfig:       hostCfg,
+		NetworkingConfig: networkCfg,
+		Name:             spec.Name,
+	})
 	if err != nil {
 		return "", fmt.Errorf("creating container: %w", err)
 	}
@@ -339,7 +341,7 @@ func (m *manager) CreateContainer(ctx context.Context, spec *ContainerSpec) (str
 
 // StartContainer starts a container.
 func (m *manager) StartContainer(ctx context.Context, containerID string) error {
-	if err := m.client.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
+	if _, err := m.client.ContainerStart(ctx, containerID, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("starting container %s: %w", containerID[:12], err)
 	}
 
@@ -360,7 +362,7 @@ func (m *manager) StopContainer(ctx context.Context, containerID string, timeout
 		t = &d
 	}
 
-	if err := m.client.ContainerStop(ctx, containerID, container.StopOptions{
+	if _, err := m.client.ContainerStop(ctx, containerID, client.ContainerStopOptions{
 		Timeout: t,
 	}); err != nil {
 		return fmt.Errorf("stopping container %s: %w", containerID[:12], err)
@@ -376,7 +378,7 @@ func (m *manager) StopContainer(ctx context.Context, containerID string, timeout
 
 // RemoveContainer removes a container.
 func (m *manager) RemoveContainer(ctx context.Context, containerID string) error {
-	if err := m.client.ContainerRemove(ctx, containerID, container.RemoveOptions{
+	if _, err := m.client.ContainerRemove(ctx, containerID, client.ContainerRemoveOptions{
 		Force:         true,
 		RemoveVolumes: true,
 	}); err != nil {
@@ -416,12 +418,14 @@ func (m *manager) RunInitContainer(ctx context.Context, spec *ContainerSpec, std
 		}()
 	}
 
-	statusCh, errCh := m.client.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	waitResult := m.client.ContainerWait(ctx, containerID, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNotRunning,
+	})
 
 	select {
-	case err := <-errCh:
+	case err := <-waitResult.Error:
 		return fmt.Errorf("waiting for init container: %w", err)
-	case status := <-statusCh:
+	case status := <-waitResult.Result:
 		if status.StatusCode != 0 {
 			return fmt.Errorf("init container exited with code %d", status.StatusCode)
 		}
@@ -436,7 +440,7 @@ func (m *manager) RunInitContainer(ctx context.Context, spec *ContainerSpec, std
 
 // StreamLogs streams container logs to the provided writers.
 func (m *manager) StreamLogs(ctx context.Context, containerID string, stdout, stderr io.Writer) error {
-	opts := container.LogsOptions{
+	opts := client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -468,14 +472,14 @@ func (m *manager) PullImage(ctx context.Context, imageName string, policy string
 	}
 
 	if policy == "if-not-present" {
-		images, err := m.client.ImageList(ctx, image.ListOptions{
-			Filters: filters.NewArgs(filters.Arg("reference", imageName)),
+		images, err := m.client.ImageList(ctx, client.ImageListOptions{
+			Filters: make(client.Filters).Add("reference", imageName),
 		})
 		if err != nil {
 			return fmt.Errorf("listing images: %w", err)
 		}
 
-		if len(images) > 0 {
+		if len(images.Items) > 0 {
 			log.Debug("Image already exists (policy: if-not-present)")
 
 			return nil
@@ -484,7 +488,7 @@ func (m *manager) PullImage(ctx context.Context, imageName string, policy string
 
 	log.Info("Pulling image")
 
-	reader, err := m.client.ImagePull(ctx, imageName, image.PullOptions{})
+	reader, err := m.client.ImagePull(ctx, imageName, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("pulling image %s: %w", imageName, err)
 	}
@@ -502,7 +506,7 @@ func (m *manager) PullImage(ctx context.Context, imageName string, policy string
 
 // GetImageDigest returns the SHA256 digest of an image (just the "sha256:..." portion).
 func (m *manager) GetImageDigest(ctx context.Context, imageName string) (string, error) {
-	inspect, _, err := m.client.ImageInspectWithRaw(ctx, imageName)
+	inspect, err := m.client.ImageInspect(ctx, imageName)
 	if err != nil {
 		return "", fmt.Errorf("inspecting image: %w", err)
 	}
@@ -524,10 +528,11 @@ func (m *manager) GetImageDigest(ctx context.Context, imageName string) (string,
 
 // GetContainerIP returns the IP address of a container in the specified network.
 func (m *manager) GetContainerIP(ctx context.Context, containerID, networkName string) (string, error) {
-	inspect, err := m.client.ContainerInspect(ctx, containerID)
+	inspectResult, err := m.client.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("inspecting container: %w", err)
 	}
+	inspect := inspectResult.Container
 
 	if inspect.NetworkSettings == nil || inspect.NetworkSettings.Networks == nil {
 		return "", fmt.Errorf("container has no network settings")
@@ -538,12 +543,12 @@ func (m *manager) GetContainerIP(ctx context.Context, containerID, networkName s
 		return "", fmt.Errorf("container not connected to network %s", networkName)
 	}
 
-	return netSettings.IPAddress, nil
+	return netSettings.IPAddress.String(), nil
 }
 
 // CreateVolume creates a Docker volume with the given name and labels.
 func (m *manager) CreateVolume(ctx context.Context, name string, labels map[string]string) error {
-	_, err := m.client.VolumeCreate(ctx, volume.CreateOptions{
+	_, err := m.client.VolumeCreate(ctx, client.VolumeCreateOptions{
 		Name:   name,
 		Labels: labels,
 	})
@@ -558,7 +563,7 @@ func (m *manager) CreateVolume(ctx context.Context, name string, labels map[stri
 
 // RemoveVolume removes a Docker volume.
 func (m *manager) RemoveVolume(ctx context.Context, name string) error {
-	if err := m.client.VolumeRemove(ctx, name, true); err != nil {
+	if _, err := m.client.VolumeRemove(ctx, name, client.VolumeRemoveOptions{Force: true}); err != nil {
 		return fmt.Errorf("removing volume %s: %w", name, err)
 	}
 
@@ -569,18 +574,18 @@ func (m *manager) RemoveVolume(ctx context.Context, name string) error {
 
 // ListContainers returns all containers managed by benchmarkoor.
 func (m *manager) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
-	containers, err := m.client.ContainerList(ctx, container.ListOptions{
+	containers, err := m.client.ContainerList(ctx, client.ContainerListOptions{
 		All: true,
-		Filters: filters.NewArgs(
-			filters.Arg("label", "benchmarkoor.managed-by=benchmarkoor"),
+		Filters: make(client.Filters).Add(
+			"label", "benchmarkoor.managed-by=benchmarkoor",
 		),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing containers: %w", err)
 	}
 
-	result := make([]ContainerInfo, 0, len(containers))
-	for _, c := range containers {
+	result := make([]ContainerInfo, 0, len(containers.Items))
+	for _, c := range containers.Items {
 		name := ""
 		if len(c.Names) > 0 {
 			name = c.Names[0]
@@ -601,17 +606,17 @@ func (m *manager) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 
 // ListVolumes returns all volumes managed by benchmarkoor.
 func (m *manager) ListVolumes(ctx context.Context) ([]VolumeInfo, error) {
-	volumes, err := m.client.VolumeList(ctx, volume.ListOptions{
-		Filters: filters.NewArgs(
-			filters.Arg("label", "benchmarkoor.managed-by=benchmarkoor"),
+	volumes, err := m.client.VolumeList(ctx, client.VolumeListOptions{
+		Filters: make(client.Filters).Add(
+			"label", "benchmarkoor.managed-by=benchmarkoor",
 		),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing volumes: %w", err)
 	}
 
-	result := make([]VolumeInfo, 0, len(volumes.Volumes))
-	for _, v := range volumes.Volumes {
+	result := make([]VolumeInfo, 0, len(volumes.Items))
+	for _, v := range volumes.Items {
 		result = append(result, VolumeInfo{
 			Name:   v.Name,
 			Labels: v.Labels,
@@ -639,12 +644,12 @@ func (m *manager) WaitForContainerExit(
 		defer close(statusCh)
 		defer close(errCh)
 
-		waitStatusCh, waitErrCh := m.client.ContainerWait(
-			ctx, containerID, container.WaitConditionNotRunning,
-		)
+		waitResult := m.client.ContainerWait(ctx, containerID, client.ContainerWaitOptions{
+			Condition: container.WaitConditionNotRunning,
+		})
 
 		select {
-		case status := <-waitStatusCh:
+		case status := <-waitResult.Result:
 			info := ContainerExitInfo{
 				ExitCode: status.StatusCode,
 			}
@@ -657,8 +662,8 @@ func (m *manager) WaitForContainerExit(
 				context.Background(), 10*time.Second,
 			)
 
-			inspect, inspectErr := m.client.ContainerInspect(
-				inspectCtx, containerID,
+			inspectResult, inspectErr := m.client.ContainerInspect(
+				inspectCtx, containerID, client.ContainerInspectOptions{},
 			)
 
 			inspectCancel()
@@ -667,12 +672,12 @@ func (m *manager) WaitForContainerExit(
 				m.log.WithError(inspectErr).Warn(
 					"Failed to inspect container for OOM status",
 				)
-			} else if inspect.State != nil {
-				info.OOMKilled = inspect.State.OOMKilled
+			} else if inspectResult.Container.State != nil {
+				info.OOMKilled = inspectResult.Container.State.OOMKilled
 			}
 
 			statusCh <- info
-		case err := <-waitErrCh:
+		case err := <-waitResult.Error:
 			errCh <- err
 		case <-ctx.Done():
 			errCh <- ctx.Err()

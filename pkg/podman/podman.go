@@ -6,20 +6,19 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/containers/podman/v5/pkg/bindings"
-	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
-	"github.com/containers/podman/v5/pkg/bindings/network"
-	"github.com/containers/podman/v5/pkg/bindings/system"
-	"github.com/containers/podman/v5/pkg/bindings/volumes"
-	entitiesTypes "github.com/containers/podman/v5/pkg/domain/entities/types"
-	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/ethpandaops/benchmarkoor/pkg/docker"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	nettypes "go.podman.io/common/libnetwork/types"
+	"go.podman.io/podman/v6/pkg/bindings"
+	"go.podman.io/podman/v6/pkg/bindings/containers"
+	"go.podman.io/podman/v6/pkg/bindings/images"
+	"go.podman.io/podman/v6/pkg/bindings/network"
+	"go.podman.io/podman/v6/pkg/bindings/system"
+	"go.podman.io/podman/v6/pkg/bindings/volumes"
+	entitiesTypes "go.podman.io/podman/v6/pkg/domain/entities/types"
+	"go.podman.io/podman/v6/pkg/specgen"
 )
 
 // DefaultSocket is the default rootful Podman socket path.
@@ -474,33 +473,6 @@ func (m *manager) StreamLogs(
 	}
 
 	return nil
-}
-
-// waitForRunning polls container state until it is running or the context is
-// cancelled. This is necessary because Podman's Logs API (unlike Docker's)
-// returns immediately with EOF for containers in "created" state.
-func (m *manager) waitForRunning(ctx context.Context, containerID string) error {
-	for {
-		conn, cancel := m.connWithCtx(ctx)
-
-		inspect, err := containers.Inspect(conn, containerID, nil)
-
-		cancel()
-
-		if err != nil {
-			return fmt.Errorf("inspecting container: %w", err)
-		}
-
-		if inspect.State != nil && inspect.State.Running {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
 }
 
 // PullImage pulls a container image.

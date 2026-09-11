@@ -22,12 +22,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/docker/docker/client"
 	clientpkg "github.com/ethpandaops/benchmarkoor/pkg/client"
 	"github.com/ethpandaops/benchmarkoor/pkg/config"
 	"github.com/ethpandaops/benchmarkoor/pkg/fsutil"
 	"github.com/ethpandaops/benchmarkoor/pkg/jsonrpc"
 	"github.com/ethpandaops/benchmarkoor/pkg/stats"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 

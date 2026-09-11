@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/ethpandaops/benchmarkoor/pkg/docker"
 	"github.com/sirupsen/logrus"
+	"go.podman.io/podman/v6/pkg/bindings/containers"
+	"go.podman.io/podman/v6/pkg/specgen"
 )
 
 // CheckpointManager extends ContainerManager with checkpoint/restore support.

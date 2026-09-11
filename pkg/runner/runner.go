@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	dockerclient "github.com/docker/docker/client"
 	"github.com/ethpandaops/benchmarkoor/pkg/api/indexstore"
 	"github.com/ethpandaops/benchmarkoor/pkg/blocklog"
 	"github.com/ethpandaops/benchmarkoor/pkg/client"
@@ -23,6 +22,7 @@ import (
 	"github.com/ethpandaops/benchmarkoor/pkg/livereport"
 	"github.com/ethpandaops/benchmarkoor/pkg/upload"
 	"github.com/ethpandaops/benchmarkoor/pkg/version"
+	dockerclient "github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
